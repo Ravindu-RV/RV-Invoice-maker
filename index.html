@@ -7,59 +7,30 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <style>
-body {
-  font-family: Arial, sans-serif;
-  background: #f2f2f2;
-  padding: 20px;
-}
-.container {
-  max-width: 800px;
-  background: #fff;
-  padding: 20px;
-  margin: auto;
-  border-radius: 8px;
-}
-h1, h3 {
-  text-align: center;
-}
-input {
-  width: 100%;
-  padding: 8px;
-  margin: 5px 0;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 10px;
-}
-th, td {
-  border: 1px solid #ccc;
-  padding: 8px;
-  text-align: center;
-}
-.total {
-  font-size: 18px;
-  font-weight: bold;
-  text-align: right;
-  margin-top: 10px;
-}
-button {
-  padding: 10px 15px;
-  margin-top: 10px;
-  cursor: pointer;
-}
-.invoice {
-  display: none;
-}
-.signature {
-  margin-top: 50px;
-}
+body { font-family: Arial; background:#f2f2f2; padding:20px; }
+.container { max-width:900px; background:#fff; padding:20px; margin:auto; border-radius:8px; }
+h1,h3 { text-align:center; }
+input { width:100%; padding:6px; }
+table { width:100%; border-collapse:collapse; margin-top:10px; }
+th,td { border:1px solid #ccc; padding:6px; text-align:center; }
+button { padding:8px 12px; margin-top:10px; cursor:pointer; }
+.top-bar { display:flex; justify-content:space-between; align-items:center; }
+.history { cursor:pointer; font-size:20px; }
+.total { text-align:right; font-size:18px; font-weight:bold; }
+.invoice { display:none; padding:20px; }
+.signature { margin-top:50px; }
+.remove { color:red; cursor:pointer; }
 </style>
 </head>
 
 <body>
 
 <div class="container">
+  <div class="top-bar">
+    <h2>Invoice Maker</h2>
+    <span class="history" onclick="openHistory()">📜</span>
+  </div>
+
   <h1>RV Graphic Design</h1>
   <h3>We turn your dream design</h3>
 
@@ -78,22 +49,19 @@ button {
   <label>Phone Number</label>
   <input id="customerPhone">
 
-  <h3>Item Details</h3>
+  <h3>Items</h3>
 
-  <table>
+  <table id="itemsTable">
     <tr>
       <th>Item</th>
       <th>Qty</th>
       <th>Unit Price</th>
       <th>Total</th>
-    </tr>
-    <tr>
-      <td><input id="itemName"></td>
-      <td><input id="qty" type="number" oninput="calculate()"></td>
-      <td><input id="price" type="number" oninput="calculate()"></td>
-      <td id="itemTotal">0.00</td>
+      <th>❌</th>
     </tr>
   </table>
+
+  <button onclick="addRow()">➕ Add New Item</button>
 
   <div class="total">
     Grand Total: LKR <span id="grandTotal">0.00</span>
@@ -105,28 +73,17 @@ button {
 <!-- PDF INVOICE -->
 <div id="invoice" class="invoice">
   <h1>RV Graphic Design</h1>
-  <p>We turn your dream design</p>
-  <hr>
+  <p>We turn your dream design</p><hr>
 
   <p><b>Invoice No:</b> <span id="pInvoice"></span></p>
   <p><b>Date:</b> <span id="pDate"></span></p>
-
   <p><b>Customer:</b> <span id="pName"></span></p>
   <p><b>Address:</b> <span id="pAddress"></span></p>
   <p><b>Phone:</b> <span id="pPhone"></span></p>
 
-  <table>
+  <table id="pdfTable">
     <tr>
-      <th>Item</th>
-      <th>Qty</th>
-      <th>Unit Price</th>
-      <th>Total</th>
-    </tr>
-    <tr>
-      <td id="pItem"></td>
-      <td id="pQty"></td>
-      <td id="pPrice"></td>
-      <td id="pTotal"></td>
+      <th>Item</th><th>Qty</th><th>Price</th><th>Total</th>
     </tr>
   </table>
 
@@ -139,55 +96,88 @@ button {
 </div>
 
 <script>
-const scriptURL = "PASTE_GOOGLE_SCRIPT_URL_HERE";
+const scriptURL = "PASTE_GOOGLE_SCRIPT_URL";
+const sheetURL = "PASTE_GOOGLE_SHEET_VIEW_URL";
 
 document.getElementById("date").value = new Date().toISOString().slice(0,10);
-document.getElementById("invoiceNo").value =
-  "INV-" + Date.now().toString().slice(-5);
+document.getElementById("invoiceNo").value = "INV-" + Date.now().toString().slice(-6);
+
+function addRow() {
+  let table = document.getElementById("itemsTable");
+  let row = table.insertRow(-1);
+
+  row.innerHTML = `
+    <td><input class="item"></td>
+    <td><input type="number" class="qty" oninput="calculate()"></td>
+    <td><input type="number" class="price" oninput="calculate()"></td>
+    <td class="rowTotal">0.00</td>
+    <td class="remove" onclick="removeRow(this)">✖</td>
+  `;
+}
+
+function removeRow(el) {
+  el.parentElement.remove();
+  calculate();
+}
 
 function calculate() {
-  let q = document.getElementById("qty").value || 0;
-  let p = document.getElementById("price").value || 0;
-  let t = q * p;
-  document.getElementById("itemTotal").innerText = t.toFixed(2);
-  document.getElementById("grandTotal").innerText = t.toFixed(2);
+  let grand = 0;
+  document.querySelectorAll("#itemsTable tr").forEach((row, i) => {
+    if (i === 0) return;
+    let q = row.querySelector(".qty")?.value || 0;
+    let p = row.querySelector(".price")?.value || 0;
+    let t = q * p;
+    row.querySelector(".rowTotal").innerText = t.toFixed(2);
+    grand += t;
+  });
+  document.getElementById("grandTotal").innerText = grand.toFixed(2);
+}
+
+function openHistory() {
+  window.open(sheetURL, "_blank");
 }
 
 function saveAndGenerate() {
+  let items = [];
+  let pdfTable = document.getElementById("pdfTable");
+  pdfTable.innerHTML = "<tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>";
+
+  document.querySelectorAll("#itemsTable tr").forEach((row, i) => {
+    if (i === 0) return;
+    let item = row.querySelector(".item").value;
+    let qty = row.querySelector(".qty").value;
+    let price = row.querySelector(".price").value;
+    let total = row.querySelector(".rowTotal").innerText;
+
+    items.push({name:item, qty, price, total});
+
+    let r = pdfTable.insertRow();
+    r.innerHTML = `<td>${item}</td><td>${qty}</td><td>${price}</td><td>${total}</td>`;
+  });
+
   let data = {
     invoiceNo: invoiceNo.value,
     date: date.value,
     customerName: customerName.value,
     address: customerAddress.value,
     phone: customerPhone.value,
-    item: itemName.value,
-    qty: qty.value,
-    unitPrice: price.value,
-    total: grandTotal.innerText
+    items: items
   };
 
-  fetch(scriptURL, {
-    method: "POST",
-    body: JSON.stringify(data)
-  });
+  fetch(scriptURL, { method:"POST", body:JSON.stringify(data) });
 
-  document.getElementById("pInvoice").innerText = data.invoiceNo;
-  document.getElementById("pDate").innerText = data.date;
-  document.getElementById("pName").innerText = data.customerName;
-  document.getElementById("pAddress").innerText = data.address;
-  document.getElementById("pPhone").innerText = data.phone;
-  document.getElementById("pItem").innerText = data.item;
-  document.getElementById("pQty").innerText = data.qty;
-  document.getElementById("pPrice").innerText = data.unitPrice;
-  document.getElementById("pTotal").innerText = data.total;
-  document.getElementById("pGrand").innerText = data.total;
+  pInvoice.innerText = data.invoiceNo;
+  pDate.innerText = data.date;
+  pName.innerText = data.customerName;
+  pAddress.innerText = data.address;
+  pPhone.innerText = data.phone;
+  pGrand.innerText = grandTotal.innerText;
 
   document.getElementById("invoice").style.display = "block";
-
-  html2pdf().from(document.getElementById("invoice")).save(
-    data.invoiceNo + ".pdf"
-  );
+  html2pdf().from(document.getElementById("invoice")).save(data.invoiceNo + ".pdf");
 }
+
+addRow();
 </script>
 
 </body>
